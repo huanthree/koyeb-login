@@ -41,11 +41,11 @@
 
 #### 示例 Secrets 和获取方法总结
 
-- **TELEGRAM_BOT_TOKEN**
+- **TEL_TOK**
     - 示例值: `1234567890:ABCDEFghijklmnopQRSTuvwxyZ`
     - 获取方法: 在 Telegram 中使用 `@BotFather` 创建 Bot 并获取 API Token。
 
-- **TELEGRAM_CHAT_ID**
+- **TEL_ID**
     - 示例值: `1234567890`
     - 获取方法: 发送一条消息给你的 Bot，然后访问 `https://api.telegram.org/bot<your_bot_token>/getUpdates` 获取 Chat ID。
 
