@@ -36,8 +36,8 @@ jobs:
 
       - name: 运行登录脚本
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TEL_TOK: ${{ secrets.TEL_TOK }}
+          TEL_ID: ${{ secrets.TEL_ID }}
           KOY_ACC: ${{ secrets.KOY_ACC }}
         run: |
           python koyeb-login.py
