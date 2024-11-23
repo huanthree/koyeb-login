@@ -16,7 +16,8 @@ def send_telegram_message(message):
 
 def login_koyeb(email, password):
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
+        # 启用无头模式
+        browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
         # 访问Koyeb登录页面
