@@ -11,6 +11,8 @@ on:
 jobs:
   login:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # <--- 关键修改：授予工作流对仓库的写权限
 
     steps:
       - name: Checkout 仓库代码
