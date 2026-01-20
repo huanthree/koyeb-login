@@ -1,40 +1,38 @@
 name: Run Koyeb Auto Login
 
 on:
-  workflow_dispatch: # 手动触发
+  workflow_dispatch: # 手动触发运行
   schedule:
-    - cron: "0 0 * * 1" # 每周一 UTC 00:00 自动运行
+    - cron: "0 0 * * 1" # 每周一 UTC 00:00 运行
   push:
     branches:
-      - main # 推送至 main 分支时运行
+      - main
 
 jobs:
-  auto-login:
+  login-job:
     runs-on: ubuntu-latest
-    
-    # 授予工作流对仓库的写权限，用于更新 time.txt
     permissions:
-      contents: write
+      contents: write # 授予写入 time.txt 的权限
 
     steps:
       - name: 1. 拉取仓库代码
         uses: actions/checkout@v4
 
-      - name: 2. 设置 Python 环境
+      - name: 2. 配置 Python 环境
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-          cache: 'pip' # 启用 pip 缓存提高后续运行速度
+          # 已移除 cache: 'pip' 以解决缺少 requirements.txt 导致的报错
 
-      - name: 3. 安装依赖库
+      - name: 3. 安装脚本依赖
         run: |
           python -m pip install --upgrade pip
           pip install playwright requests
-          # 仅安装 Chromium 浏览器内核及其运行所需的系统环境
+          # 安装 Playwright 浏览器及其系统依赖
           playwright install chromium
           playwright install-deps chromium
 
-      - name: 4. 执行自动登录脚本
+      - name: 4. 执行自动登录
         env:
           TEL_TOK: ${{ secrets.TEL_TOK }}
           TEL_ID: ${{ secrets.TEL_ID }}
@@ -42,31 +40,25 @@ jobs:
         run: |
           python koyeb-login.py
 
-      - name: 5. 上传调试截图 (仅在出错或有截图生成时)
-        # 使用 if: always() 确保即便脚本报错，也会执行上传动作
+      - name: 5. 上传排障截图
+        # 即使之前的脚本运行失败，也执行此步骤
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: koyeb-debug-screenshots
           path: error_*.png
-          retention-days: 3 # 截图保留 3 天，过期自动删除
+          retention-days: 3
 
-      - name: 6. 更新活跃度文件 (time.txt)
-        # 只有在脚本运行结束（无论成功失败）后才尝试提交，以维持 GitHub 活跃度
+      - name: 6. 更新仓库活跃度 (time.txt)
         if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # 生成或更新时间记录
-          echo "Last execution: $(date +'%Y-%m-%d %H:%M:%S')" > time.txt
-          
+          echo "Last run: $(date +'%Y-%m-%d %H:%M:%S')" > time.txt
           git add time.txt
-          
-          # 检查是否有内容变更，避免空提交报错
           if git diff --cached --quiet; then
-            echo "No changes to commit."
+            echo "No changes."
           else
-            git commit -m "chore: update activity log $(date +'%Y-%m-%d %H:%M:%S')"
+            git commit -m "chore: auto update active log $(date +'%Y-%m-%d %H:%M:%S')"
             git push origin HEAD:main
           fi
