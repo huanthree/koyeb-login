@@ -3,7 +3,7 @@ name: Run Login Script
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * 1"  # 每个星期一的 00:00 (UTC) 运行一次
+    - cron: "0 0 * * 1" 
   push:
     branches:
       - main
@@ -12,29 +12,24 @@ jobs:
   login:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # <--- 关键修改：授予工作流对仓库的写权限
+      contents: write 
 
     steps:
       - name: Checkout 仓库代码
-        uses: actions/checkout@v2
-
-      - name: 安装 Playwright 所需依赖
-        run: |
-          npx playwright install-deps
+        uses: actions/checkout@v3 # 升级到 v3 稳定性更高
 
       - name: 设置 Python 环境
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
       - name: 安装依赖
         run: |
           python -m pip install --upgrade pip
-          pip install playwright aiofiles requests
-
-      - name: Install Playwright Browsers  # 安装浏览器
-        run: |
-          playwright install
+          pip install playwright requests
+          # 仅安装必要的 chromium 浏览器及系统依赖
+          playwright install chromium
+          playwright install-deps chromium
 
       - name: 运行登录脚本
         env:
@@ -45,25 +40,14 @@ jobs:
           python koyeb-login.py
 
       - name: Commit time.txt to repo
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # 如果 time.txt 不存在，说明是第一次运行
-          if [ ! -f time.txt ]; then
-            echo "首次生成时间：$(date +'%Y-%m-%d %H:%M:%S')" > time.txt
-          else
-            echo "$(date +'%Y-%m-%d %H:%M:%S')" > time.txt
-          fi
-
+          echo "Last run: $(date +'%Y-%m-%d %H:%M:%S')" > time.txt
           git add time.txt
-
-          # 如果有更改再提交
           if git diff --cached --quiet; then
-            echo "无变化，无需提交"
+            echo "无变化"
           else
-            git commit -m "?? 更新时间文件: $(date +'%Y-%m-%d %H:%M:%S')"
+            git commit -m "?? 自动登录活跃度更新: $(date +'%Y-%m-%d %H:%M:%S')"
             git push origin HEAD:main
           fi
