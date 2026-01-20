@@ -6,80 +6,94 @@ import time
 def send_telegram_message(message):
     bot_token = os.environ.get('TEL_TOK')
     chat_id = os.environ.get('TEL_ID')
-    if not bot_token or not chat_id: return
+    if not bot_token or not chat_id:
+        print("Telegram 配置缺失，跳过发送消息")
+        return
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
-    try: requests.post(url, json=payload)
-    except: pass
+    payload = {
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+    try:
+        response = requests.post(url, json=payload)
+        return response.json()
+    except Exception as e:
+        print(f"发送消息失败: {e}")
 
 def login_koyeb(email, password):
     with sync_playwright() as p:
+        # 启动浏览器，设置模拟窗口大小
         browser = p.chromium.launch(headless=True)
-        # 模拟真实浏览器特征
         context = browser.new_context(viewport={'width': 1280, 'height': 800})
         page = context.new_page()
         
-        # 定义截图文件名（处理特殊字符）
+        # 预设截图文件名（处理特殊字符以防报错）
         safe_email = email.replace('@', '_').replace('.', '_')
         screenshot_path = f"error_{safe_email}.png"
 
         try:
-            # 1. 访问登录页
+            # 1. 访问登录页面
             page.goto("https://app.koyeb.com/auth/signin", wait_until="networkidle")
             
-            # 2. 填写邮箱
-            page.wait_for_selector('input[name="email"]', timeout=10000)
+            # 2. 填写邮箱并点击继续
+            page.wait_for_selector('input[name="email"]', timeout=15000)
             page.fill('input[name="email"]', email)
             page.click('button[type="submit"]')
-            print(f"[{email}] 已输入邮箱，正在跳转...")
+            print(f"[{email}] 第一步：邮箱已提交")
 
-            # 3. 填写密码
-            page.wait_for_selector('input[name="password"]', timeout=10000)
+            # 3. 填写密码并登录
+            # Koyeb 现在会在新页面或动态加载密码框
+            page.wait_for_selector('input[name="password"]', timeout=15000)
             page.fill('input[name="password"]', password)
-            
-            # 点击登录，并等待页面发生显著变化
             page.click('button[type="submit"]')
-            print(f"[{email}] 已输入密码，提交登录...")
+            print(f"[{email}] 第二步：密码已提交")
 
-            # 4. 验证成功或处理弹窗
-            # 策略：等待直到 URL 包含 dashboard，或者出现特定的“跳过”按钮
+            # 4. 验证登录结果或处理弹窗
             try:
-                # 尝试等待进入控制台的关键特征，缩短超时到 15s
-                # 如果是新账号，可能会卡在验证页面，这时候截图最有用
-                page.wait_for_url("**/dashboard**", timeout=15000)
+                # 等待直到进入 dashboard 控制台
+                page.wait_for_url("**/dashboard**", timeout=20000)
                 return f"账号 {email} 登录成功!"
             except:
-                # 如果没到 dashboard，检查是否有“Skip”按钮
-                skip = page.query_selector('text="Skip for now", text="Maybe later"')
-                if skip:
-                    skip.click()
-                    page.wait_for_timeout(2000)
-                    return f"账号 {email} 登录成功 (已跳过弹窗)!"
+                # 检查是否有 "Skip for now" 类的按钮（处理 2FA 提示）
+                skip_btn = page.query_selector('text="Skip for now", text="Maybe later"')
+                if skip_btn:
+                    skip_btn.click()
+                    page.wait_for_timeout(3000)
+                    return f"账号 {email} 登录成功 (已跳过引导弹窗)!"
                 
-                # 如果还是没成功，抛出异常进入截图流程
-                raise Exception("未检测到登录成功的控制台页面或跳过按钮")
+                # 如果既没进入 dashboard 也没找到跳过按钮，抛出错误以便截图
+                raise Exception("无法确认登录状态，可能出现了验证码或新的引导页面")
 
         except Exception as e:
-            # 【核心功能】保存出错瞬间的截图
+            # 捕获异常并截图
             try:
                 page.screenshot(path=screenshot_path, full_page=True)
-                print(f"[{email}] 调试截图已保存至: {screenshot_path}")
-            except Exception as screenshot_err:
-                print(f"[{email}] 截图保存失败: {screenshot_err}")
-                
+                print(f"[{email}] 登录失败，已保存调试截图: {screenshot_path}")
+            except Exception as se:
+                print(f"[{email}] 截图失败: {se}")
             return f"账号 {email} 登录出错: {str(e)}"
         finally:
             browser.close()
 
 if __name__ == "__main__":
-    # 原有逻辑保持不变...
-    accounts = os.environ.get('KOY_ACC', '').split()
+    # 从环境变量获取账号信息，格式为 "email1:pass1 email2:pass2"
+    accounts_env = os.environ.get('KOY_ACC', '')
+    if not accounts_env:
+        print("错误：未找到 KOY_ACC 环境变量")
+        exit(1)
+        
+    accounts = accounts_env.split()
     login_statuses = []
+
     for account in accounts:
-        if ':' not in account: continue
-        email, password = account.split(':')
+        if ':' not in account:
+            continue
+        email, password = account.split(':', 1)
         status = login_koyeb(email, password)
         login_statuses.append(status)
         print(status)
+
     if login_statuses:
-        send_telegram_message("Koyeb登录报告:\n\n" + "\n".join(login_statuses))
+        report = "?? *Koyeb 自动登录任务报告*:\n\n" + "\n".join(login_statuses)
+        send_telegram_message(report)
