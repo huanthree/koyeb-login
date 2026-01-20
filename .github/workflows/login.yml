@@ -1,35 +1,4 @@
-name: Run Login Script
-
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: "0 0 * * 1" 
-  push:
-    branches:
-      - main
-
-jobs:
-  login:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write 
-
-    steps:
-      - name: Checkout 仓库代码
-        uses: actions/checkout@v3 # 升级到 v3 稳定性更高
-
-      - name: 设置 Python 环境
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: 安装依赖
-        run: |
-          python -m pip install --upgrade pip
-          pip install playwright requests
-          # 仅安装必要的 chromium 浏览器及系统依赖
-          playwright install chromium
-          playwright install-deps chromium
+# ...前面的步骤保持不变 (Checkout, Setup Python, Install deps)...
 
       - name: 运行登录脚本
         env:
@@ -39,15 +8,13 @@ jobs:
         run: |
           python koyeb-login.py
 
-      - name: Commit time.txt to repo
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          echo "Last run: $(date +'%Y-%m-%d %H:%M:%S')" > time.txt
-          git add time.txt
-          if git diff --cached --quiet; then
-            echo "无变化"
-          else
-            git commit -m "?? 自动登录活跃度更新: $(date +'%Y-%m-%d %H:%M:%S')"
-            git push origin HEAD:main
-          fi
+      # 【核心功能】上传错误截图到 GitHub Actions 产物中
+      - name: Upload Debug Screenshots
+        if: always()  # 无论成功或失败都执行
+        uses: actions/upload-artifact@v4
+        with:
+          name: koyeb-error-screenshots
+          path: error_*.png
+          retention-days: 3 # 保留3天
+
+      # ...后面的 Commit time.txt 步骤保持不变...
